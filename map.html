@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Дордой — Оперативный Учет Online (Local Storage)</title>
+    
+    <script src="https://api-maps.yandex.ru/2.1/?lang=ru_RU" type="text/javascript"></script>
+
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: rgba(28, 28, 30, 0.75);
+            --card-nested: #2c2c2e;
+            --text-main: #f5f5f7;
+            --text-muted: #86868b;
+            --border: #3a3a3c;
+            --apple-blue: #0071e3;
+            --apple-green: #34c759;
+            --apple-red: #ff453a;
+            --apple-yellow: #ff9f0a;
+            --map-invert: invert(1) hue-rotate(180deg);
+        }
+
+        [data-theme="light"] {
+            --bg-color: #f4f5f6; /* Мягкий приятный светлый фон */
+            --card-bg: rgba(255, 255, 255, 0.85);
+            --card-nested: #e9ebed;
+            --text-main: #1d1d1f;
+            --text-muted: #6e6e73;
+            --border: #d2d2d7;
+            --apple-blue: #0071e3;
+            --apple-green: #24b47e;
+            --apple-red: #ff3b30;
+            --apple-yellow: #ff9500;
+            --map-invert: none;
+        }
+
+        * { 
+            box-sizing: border-box; 
+            margin: 0; 
+            padding: 0; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; 
+            -webkit-font-smoothing: antialiased;
+            transition: background-color 0.2s ease, color 0.2s ease;
+        }
+        
+        body { 
+            background-color: var(--bg-color); 
+            color: var(--text-main); 
+            padding: 10px; 
+            display: flex; 
+            justify-content: center; 
+        }
+
+        .app-container { 
+            width: 100%; 
+            max-width: 1650px; 
+            background: var(--card-bg); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 20px; 
+            display: flex; 
+            flex-direction: column; 
+            overflow: hidden; 
+            border: 1px solid rgba(255, 255, 255, 0.1); 
+        }
+
+        [data-theme="light"] .app-container {
+            border: 1px solid rgba(0, 0, 0, 0.08);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.04);
+        }
+        
+        .header-panel { 
+            padding: 15px 20px; 
+            background: rgba(22, 22, 23, 0.8); 
+            border-bottom: 1px solid var(--border); 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            flex-wrap: wrap; 
+            gap: 10px; 
+        }
+        [data-theme="light"] .header-panel { background: rgba(255, 255, 255, 0.85); }
+        .header-panel h1 { font-size: 18px; font-weight: 600; }
+        
+        .instruction { 
+            font-size: 12px; 
+            background: rgba(255, 255, 255, 0.05); 
+            padding: 10px 15px; 
+            border-radius: 12px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            width: 100%; 
+            gap: 10px; 
+            flex-wrap: wrap;
+        }
+        [data-theme="light"] .instruction { background: rgba(0, 0, 0, 0.03); }
+        
+        .btn-group { display: flex; gap: 8px; }
+        .action-btn { 
+            color: white; border: none; padding: 6px 12px; border-radius: 10px; 
+            font-weight: 500; cursor: pointer; font-size: 12px; display: flex; align-items: center; gap: 4px; 
+        }
+        .draw-btn-style { background: var(--apple-blue); }
+        .save-btn-style { background: var(--apple-green); }
+
+        .theme-toggle-btn, .lang-select { 
+            background: rgba(255, 255, 255, 0.1); color: var(--text-main); border: 1px solid var(--border); 
+            padding: 6px 12px; border-radius: 10px; font-weight: 500; cursor: pointer; font-size: 12px; outline: none;
+        }
+        [data-theme="light"] .theme-toggle-btn, [data-theme="light"] .lang-select { background: #ffffff; }
+
+        .main-workspace { 
+            display: grid; 
+            grid-template-columns: 1fr 350px; 
+            height: 550px; 
+            background: var(--card-nested); 
+            border-bottom: 1px solid var(--border); 
+        }
+        @media (max-width: 900px) {
+            .main-workspace { grid-template-columns: 1fr; height: auto; }
+            #map { height: 400px !important; }
+            .rows-sidebar { height: 300px; grid-template-rows: 1fr 1fr; }
+        }
+        
+        #map { width: 100%; height: 100%; filter: var(--map-invert); }
+
+        .rows-sidebar { display: grid; grid-template-rows: 1fr 1fr; background: rgba(22, 22, 23, 0.4); border-left: 1px solid var(--border); overflow: hidden; }
+        [data-theme="light"] .rows-sidebar { background: rgba(255, 255, 255, 0.3); }
+        .sidebar-section { padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
+        .sidebar-section:first-child { border-bottom: 1px solid var(--border); }
+
+        .sidebar-title { 
+            font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; 
+            display: flex; justify-content: space-between; position: sticky; top: 0; background: var(--bg-color); padding-bottom: 6px; z-index: 5; 
+        }
+        [data-theme="light"] .sidebar-title { background: #ffffff; }
+        
+        .row-item { 
+            background: rgba(255, 255, 255, 0.04); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 12px; padding: 10px; position: relative; 
+        }
+        [data-theme="light"] .row-item { background: #ffffff; border: 1px solid rgba(0, 0, 0, 0.05); }
+        .row-name { font-weight: 500; font-size: 13px; color: var(--text-main); max-width: 80%; }
+        
+        .user-badge { display: inline-block; background: rgba(255,255,255,0.08); color: var(--text-main); font-size: 10px; padding: 2px 6px; border-radius: 5px; margin-top: 4px; }
+        [data-theme="light"] .user-badge { background: #e5e5ea; color: #1d1d1f; }
+        .date-badge { font-size: 10px; color: var(--text-muted); margin-top: 4px; margin-left: 6px; }
+        
+        .item-actions-group { position: absolute; top: 10px; right: 10px; display: flex; gap: 8px; }
+        .sidebar-action-btn { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; }
+        .sidebar-action-btn:hover { color: var(--text-main); }
+
+        .bottom-analytics-grid { display: grid; grid-template-columns: 2fr 1.2fr; background: rgba(22, 22, 23, 0.6); }
+        [data-theme="light"] .bottom-analytics-grid { background: rgba(255, 255, 255, 0.5); }
+        @media (max-width: 900px) {
+            .bottom-analytics-grid { grid-template-columns: 1fr; }
+            .stats-block { border-right: none !important; border-bottom: 1px solid var(--border); }
+        }
+        
+        .stats-block { padding: 20px; border-right: 1px solid var(--border); display: flex; flex-direction: column; gap: 12px; overflow-x: auto; }
+        .stats-select, select { background: var(--bg-color) !important; color: var(--text-main) !important; border: 1px solid var(--border); padding: 6px 10px; border-radius: 8px; font-size: 12px; outline: none; }
+        [data-theme="light"] select, [data-theme="light"] .stats-select { background: #ffffff !important; }
+        
+        .stats-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 12px; min-width: 500px; }
+        .stats-table th { color: var(--text-muted); font-weight: 500; padding: 6px; border-bottom: 1px solid var(--border); font-size: 10px; }
+        .stats-table td { padding: 8px 6px; border-bottom: 1px solid rgba(255,255,255,0.03); }
+        [data-theme="light"] .stats-table td { border-bottom: 1px solid rgba(0,0,0,0.03); }
+        
+        .count-badge { display: inline-block; padding: 2px 6px; border-radius: 6px; font-size: 11px; font-weight: 500; text-align: center; }
+        .badge-poly { background: rgba(0, 113, 227, 0.15); color: #0071e3; }
+        .badge-point { background: rgba(191, 90, 242, 0.15); color: #bf5af2; }
+
+        .hr-block { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+        .hr-form { display: flex; gap: 6px; background: rgba(255,255,255,0.03); padding: 8px; border-radius: 12px; border: 1px solid var(--border); }
+        [data-theme="light"] .hr-form { background: rgba(0,0,0,0.02); }
+        .hr-form input { background: var(--bg-color); border: 1px solid var(--border); padding: 6px 10px; color: var(--text-main); border-radius: 8px; font-size: 12px; flex: 1; outline: none; }
+        [data-theme="light"] .hr-form input { background: #ffffff; }
+        .hr-add-btn { background: var(--apple-blue); color: white; border: none; padding: 6px 12px; border-radius: 8px; font-weight: 500; cursor: pointer; font-size: 12px; }
+        
+        .hr-list { display: flex; flex-direction: column; gap: 6px; max-height: 150px; overflow-y: auto; }
+        .hr-item { background: rgba(255, 255, 255, 0.04); border: 1px solid var(--border); padding: 8px 12px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; }
+        [data-theme="light"] .hr-item { background: #ffffff; border: 1px solid rgba(0, 0, 0, 0.05); }
+        .hr-position { font-size: 10px; color: var(--text-muted); }
+        .hr-actions { display: flex; gap: 6px; }
+        .hr-btn { background: none; border: none; cursor: pointer; font-size: 12px; color: var(--text-muted); }
+
+        .modal-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.6); display: none; justify-content: center; align-items: center; z-index: 9999; backdrop-filter: blur(10px); }
+        .modal-card { background: var(--bg-color); border: 1px solid var(--border); padding: 20px; border-radius: 16px; width: 90%; max-width: 350px; display: flex; flex-direction: column; gap: 12px; }
+        [data-theme="light"] .modal-card { background: #ffffff; }
+        .modal-card h3 { font-size: 16px; font-weight: 600; }
+        .modal-card label { font-size: 10px; color: var(--text-muted); font-weight: 500; text-transform: uppercase; }
+        .modal-card input { background: var(--card-nested); border: 1px solid var(--border); padding: 8px 10px; color: var(--text-main); border-radius: 8px; font-size: 13px; width: 100%; outline: none; }
+        [data-theme="light"] .modal-card input { background: #f5f5f7; }
+        .modal-buttons { display: flex; gap: 8px; margin-top: 5px; }
+        .modal-btn { flex: 1; padding: 8px; border-radius: 8px; font-weight: 500; border: none; cursor: pointer; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div id="zoneModal" class="modal-overlay">
+        <div class="modal-card">
+            <h3 id="modalTitle">📍 Новый контейнер</h3>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label id="labelModalName">Номер или Описание</label>
+                <input type="text" id="modalZoneName" onkeydown="if(event.key === 'Enter') confirmSaveObject()">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label id="labelModalWorker">Кто проверяет</label>
+                <select id="modalZoneWorker"></select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label id="labelModalStatus">Статус проверки</label>
+                <select id="modalZoneStatus"></select>
+            </div>
+            <div class="modal-buttons">
+                <button class="modal-btn" id="btnModalCancel" style="background: rgba(120,120,120,0.2); color: var(--text-main);" onclick="closeModal()">Отмена</button>
+                <button class="modal-btn" id="btnModalSave" style="background: var(--apple-blue); color: white;" onclick="confirmSaveObject()">Сохранить</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <div class="header-panel">
+            <h1 id="appTitle">Дордой Мониторинг</h1>
+            <div class="user-controls" style="display: flex; gap: 8px; align-items: center;">
+                <select class="lang-select" id="langSelect" onchange="changeLanguage()">
+                    <option value="ru">🇷🇺 Русский</option>
+                    <option value="zh">🇨🇳 中文</option>
+                </select>
+                <button class="theme-toggle-btn" onclick="toggleTheme()" id="themeToggleBtn">🌙 Темная тема</button>
+            </div>
+            <div class="instruction">
+                <span id="textInstruction">ℹ️ **Режим касания:** Кликните в любое место на карте для фиксации контейнера.</span>
+                <div class="btn-group">
+                    <button id="drawBtn" class="action-btn draw-btn-style" onclick="startDrawingMode()">📐 Разметить ряд (Контур)</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="main-workspace">
+            <div id="map"></div>
+            <div class="rows-sidebar">
+                <div class="sidebar-section">
+                    <div class="sidebar-title">
+                        <span id="titlePolyRows">🗺️ Контуры рядов</span>
+                        <span id="polyCounter" style="color: var(--apple-blue);">0</span>
+                    </div>
+                    <div id="polyListContainer" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+                <div class="sidebar-section">
+                    <div class="sidebar-title">
+                        <span id="titleContainers">📍 Контейнеры</span>
+                        <span id="pointCounter" style="color: #bf5af2;">0</span>
+                    </div>
+                    <div id="pointListContainer" style="display: flex; flex-direction: column; gap: 6px;"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bottom-analytics-grid">
+            <div class="stats-block">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                    <h3 style="font-size: 14px; font-weight: 600;" id="titleStats">Статистика и KPI</h3>
+                    <div style="display:flex; align-items:center; gap:6px;">
+                        <span style="font-size: 12px; color: var(--text-muted);" id="labelFilterWorker">Сотрудник:</span>
+                        <select id="statsWorkerFilter" class="stats-select" onchange="calculateStatistics()"></select>
+                    </div>
+                </div>
+                <table class="stats-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;" id="thPeriod">Период</th>
+                            <th colspan="2" style="text-align: center; background: rgba(120,120,120,0.05);" id="thPersonal">Личный зачет</th>
+                            <th colspan="2" style="text-align: center; background: rgba(52, 199, 89, 0.05);" id="thTeam">Общий итог</th>
+                        </tr>
+                        <tr>
+                            <th id="thTimeframe">Временной отрезок</th>
+                            <th id="thRows1">🗺️ Ряды</th>
+                            <th id="thPlaces1">📍 Места</th>
+                            <th id="thRows2">🗺️ Всего рядов</th>
+                            <th id="thPlaces2">📍 Всего мест</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr><td><b class="lang-time" data-key="today">Сегодня</b></td><td><span id="s1_poly" class="count-badge badge-poly">0</span></td><td><span id="s1_point" class="count-badge badge-point">0</span></td><td><span id="tot1_poly" class="count-badge badge-poly">0</span></td><td><span id="tot1_point" class="count-badge badge-point">0</span></td></tr>
+                        <tr><td><b class="lang-time" data-key="days7">За 7 дней</b></td><td><span id="s7_poly" class="count-badge badge-poly">0</span></td><td><span id="s7_point" class="count-badge badge-point">0</span></td><td><span id="tot7_poly" class="count-badge badge-poly">0</span></td><td><span id="tot7_point" class="count-badge badge-point">0</span></td></tr>
+                        <tr><td><b class="lang-time" data-key="days15">За 15 дней</b></td><td><span id="s15_poly" class="count-badge badge-poly">0</span></td><td><span id="s15_point" class="count-badge badge-point">0</span></td><td><span id="tot15_poly" class="count-badge badge-poly">0</span></td><td><span id="tot15_point" class="count-badge badge-point">0</span></td></tr>
+                        <tr><td><b class="lang-time" data-key="month1">За 1 месяц</b></td><td><span id="s30_poly" class="count-badge badge-poly">0</span></td><td><span id="s30_point" class="count-badge badge-point">0</span></td><td><span id="tot30_poly" class="count-badge badge-poly">0</span></td><td><span id="tot30_point" class="count-badge badge-point">0</span></td></tr>
+                        <tr><td><b class="lang-time" data-key="months6">За 6 месяцев</b></td><td><span id="s180_poly" class="count-badge badge-poly">0</span></td><td><span id="s180_point" class="count-badge badge-point">0</span></td><td><span id="tot180_poly" class="count-badge badge-poly">0</span></td><td><span id="tot180_point" class="count-badge badge-point">0</span></td></tr>
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="hr-block">
+                <h3 style="font-size: 14px; font-weight: 600;" id="titleHR">Управление командой</h3>
+                <div class="hr-form">
+                    <input type="text" id="hrInputName">
+                    <input type="text" id="hrInputPosition">
+                    <button class="hr-add-btn" id="btnHRAdd" onclick="saveEmployeeClick()">Добавить</button>
+                </div>
+                <div class="hr-list" id="employeesListContainer"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="text/javascript">
+        // ЛОКАЛИЗАЦИЯ (Интерфейс)
+        const i18n = {
+            ru: {
+                appTitle: "Дордой Мониторинг Online",
+                textInstruction: "ℹ️ **Режим касания:** Кликните в любое место на карте для фиксации контейнера.",
+                drawBtn_idle: "📐 Разметить ряд (Контур)", drawBtn_active: "💾 Сохранить контур",
+                titlePolyRows: "🗺️ Контуры рядов", titleContainers: "📍 Контейнеры",
+                titleStats: "Статистика и KPI", labelFilterWorker: "Сотрудник:",
+                thPeriod: "Период", thPersonal: "Личный зачет", thTeam: "Общий итог", thTimeframe: "Временной отрезок",
+                thRows1: "🗺️ Ряды", thPlaces1: "📍 Места", thRows2: "🗺️ Всего рядов", thPlaces2: "📍 Всего мест",
+                titleHR: "Управление командой", hrInputName: "ФИО сотрудника", hrInputPosition: "Позиция",
+                btnHRAdd: "Добавить", btnHRApply: "Применить",
+                modalTitlePoint: "📍 Новый контейнер", modalTitlePoly: "🗺️ Описание ряда / контура",
+                modalTitleEdit: "✏️ Редактирование объекта",
+                labelModalName: "Номер или Описание", labelModalWorker: "Кто проверяет", labelModalStatus: "Статус проверки",
+                modalPlaceholder: "Например: Контейнер 102", btnModalCancel: "Отмена", btnModalSave: "Сохранить",
+                status_green: "🟢 Посещен / Проверен", status_red: "🔴 Еще не посещен", status_yellow: "🟡 Запланирован",
+                alert_points: "Нужно минимум 3 точки!", alert_fill: "Заполните поле имени/номера!", alert_fio: "Укажите ФИО!",
+                confirm_del_emp: "Удалить сотрудника?", confirm_del_obj: "Удалить этот объект?",
+                theme_dark: "🌙 Темная тема", theme_light: "☀️ Светлая тема",
+                today: "Сегодня", days7: "За 7 дней", days15: "За 15 дней", month1: "За 1 месяц", months6: "За 6 месяцев",
+                balloon_status: "Статус", balloon_worker: "👤 Исполнитель", balloon_del: "🗑️ Удалить", balloon_edit: "✏️ Ред."
+            },
+            zh: {
+                appTitle: "多尔дой 云端监测系统",
+                textInstruction: "ℹ️ **触摸模式：** 点击地图任意位置可立即固定集装箱。",
+                drawBtn_idle: "📐 绘制排（轮廓）", drawBtn_active: "💾 保存轮廓",
+                titlePolyRows: "🗺️ 排廓轮廓", titleContainers: "📍 集装箱",
+                titleStats: "数据统计与 KPI", labelFilterWorker: "员工：",
+                thPeriod: "周期", thPersonal: "个人业绩", thTeam: "团队总计", thTimeframe: "时间段",
+                thRows1: "🗺️ 排数", thPlaces1: "📍 位置", thRows2: "🗺️ 总排数", thPlaces2: "📍 总位置",
+                titleHR: "团队管理", hrInputName: "员工姓名", hrInputPosition: "职位",
+                btnHRAdd: "添加", btnHRApply: "应用",
+                modalTitlePoint: "📍 新集装箱", modalTitlePoly: "🗺️ 排/轮廓描述",
+                modalTitleEdit: "✏️ 编辑对象内容",
+                labelModalName: "编号或描述", labelModalWorker: "检查人员", labelModalStatus: "检查状态",
+                modalPlaceholder: "例如：102号集装箱", btnModalCancel: "取消", btnModalSave: "保存",
+                status_green: "🟢 已访问 / 已检查", status_red: "🔴 未访问", status_yellow: "🟡 已计划",
+                alert_points: "至少需要3个点！", alert_fill: "请填写名称/编号字段！", alert_fio: "请填写姓名！",
+                confirm_del_emp: "确定要删除该员工吗？", confirm_del_obj: "确定要删除该对象吗？",
+                theme_dark: "🌙 暗黑模式", theme_light: "☀️ 明亮模式",
+                today: "今天", days7: "7天内", days15: "15天内", month1: "1个月内", months6: "6个月内",
+                balloon_status: "状态", balloon_worker: "👤 执行人", balloon_del: "🗑️ 删除", balloon_edit: "✏️ 编辑"
+            }
+        };
+
+        const dordoyCenter = [42.9348, 74.6175];
+        let myMap;
+        let mapState = "idle";
+        let currentPolygonGeometry = null;
+        let lastClickCoords = null;
+        
+        let editingEmployeeId = null;
+        let editingObjectId = null;
+
+        const colorPalette = { green: "#34c759", red: "#ff453a", yellow: "#ff9f0a" };
+
+        // Инициализация массивов данных
+        let objectsList = [];
+        let employeesList = [];
+
+        let currentLang = localStorage.getItem('dordoy_lang') || 'ru';
+        let currentTheme = localStorage.getItem('dordoy_theme') || 'dark';
+        document.documentElement.setAttribute('data-theme', currentTheme);
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('langSelect').value = currentLang;
+            applyLocalization();
+        });
+
+        function changeLanguage() {
+            currentLang = document.getElementById('langSelect').value;
+            localStorage.setItem('dordoy_lang', currentLang);
+            applyLocalization();
+            renderAll();
+        }
+
+        function applyLocalization() {
+            const t = i18n[currentLang];
+            document.getElementById('appTitle').innerText = t.appTitle;
+            document.getElementById('textInstruction').innerHTML = t.textInstruction;
+            document.getElementById('drawBtn').innerText = (mapState === "idle") ? t.drawBtn_idle : t.drawBtn_active;
+            document.getElementById('titlePolyRows').innerText = t.titlePolyRows;
+            document.getElementById('titleContainers').innerText = t.titleContainers;
+            document.getElementById('titleStats').innerText = t.titleStats;
+            document.getElementById('labelFilterWorker').innerText = t.labelFilterWorker;
+            document.getElementById('thPeriod').innerText = t.thPeriod;
+            document.getElementById('thPersonal').innerText = t.thPersonal;
+            document.getElementById('thTeam').innerText = t.thTeam;
+            document.getElementById('thTimeframe').innerText = t.thTimeframe;
+            document.getElementById('thRows1').innerText = t.thRows1;
+            document.getElementById('thPlaces1').innerText = t.thPlaces1;
+            document.getElementById('thRows2').innerText = t.thRows2;
+            document.getElementById('thPlaces2').innerText = t.thPlaces2;
+
+            document.querySelectorAll('.lang-time').forEach(el => {
+                const key = el.getAttribute('data-key');
+                if (t[key]) el.innerText = t[key];
+            });
+
+            document.getElementById('titleHR').innerText = t.titleHR;
+            document.getElementById('hrInputName').placeholder = t.hrInputName;
+            document.getElementById('hrInputPosition').placeholder = t.hrInputPosition;
+            document.getElementById('btnHRAdd').innerText = editingEmployeeId ? t.btnHRApply : t.btnHRAdd;
+            document.getElementById('labelModalName').innerText = t.labelModalName;
+            document.getElementById('labelModalWorker').innerText = t.labelModalWorker;
+            document.getElementById('labelModalStatus').innerText = t.labelModalStatus;
+            document.getElementById('modalZoneName').placeholder = t.modalPlaceholder;
+            document.getElementById('btnModalCancel').innerText = t.btnModalCancel;
+            document.getElementById('btnModalSave').innerText = t.btnModalSave;
+
+            const statusSelect = document.getElementById('modalZoneStatus');
+            const currentStatusVal = statusSelect.value || "green";
+            statusSelect.innerHTML = `
+                <option value="green">${t.status_green}</option>
+                <option value="red">${t.status_red}</option>
+                <option value="yellow">${t.status_yellow}</option>
+            `;
+            statusSelect.value = currentStatusVal;
+            updateThemeButtonUI(currentTheme);
+        }
+
+        function toggleTheme() {
+            currentTheme = document.documentElement.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            document.documentElement.setAttribute('data-theme', currentTheme);
+            localStorage.setItem('dordoy_theme', currentTheme);
+            updateThemeButtonUI(currentTheme);
+        }
+
+        function updateThemeButtonUI(theme) {
+            const btn = document.getElementById('themeToggleBtn');
+            btn.innerHTML = theme === 'light' ? i18n[currentLang].theme_light : i18n[currentLang].theme_dark;
+        }
+
+        // ЗАГРУЗКА ДАННЫХ ИЗ LOCALSTORAGE ВМЕСТО FIREBASE
+        ymaps.ready(init);
+        function init() {
+            myMap = new ymaps.Map("map", {
+                center: dordoyCenter, zoom: 18, controls: ['zoomControl', 'typeSelector']
+            });
+
+            myMap.events.add('click', function (e) {
+                if (mapState === "idle") {
+                    lastClickCoords = e.get('coords');
+                    openModalForm("point");
+                }
+            });
+
+            // Загружаем сохраненные контуры/точки
+            const localObjects = localStorage.getItem('dordoy_objects');
+            objectsList = localObjects ? JSON.parse(localObjects) : [];
+
+            // Загружаем сотрудников
+            const localEmployees = localStorage.getItem('dordoy_employees');
+            if (localEmployees) {
+                employeesList = JSON.parse(localEmployees);
+            } else {
+                // Если память пуста, задаем базовую команду
+                employeesList = [
+                    { id: "emp_1", name: "Аман", position: "Инспектор" },
+                    { id: "emp_2", name: "Дипо", position: "Менеджер" }
+                ];
+                localStorage.setItem('dordoy_employees', JSON.stringify(employeesList));
+            }
+
+            updateEmployeesUI();
+            renderAll();
+        }
+
+        function updateEmployeesUI() {
+            const modalSelect = document.getElementById('modalZoneWorker');
+            const filterSelect = document.getElementById('statsWorkerFilter');
+            const prevFilterVal = filterSelect.value;
+
+            modalSelect.innerHTML = ''; filterSelect.innerHTML = '';
+
+            employeesList.forEach(emp => {
+                const opt1 = document.createElement('option');
+                opt1.value = emp.name; opt1.innerText = `${emp.name} (${emp.position})`;
+                modalSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = emp.name; opt2.innerText = emp.name;
+                filterSelect.appendChild(opt2);
+            });
+
+            if (prevFilterVal && employeesList.some(e => e.name === prevFilterVal)) {
+                filterSelect.value = prevFilterVal;
+            } else if (employeesList.length > 0) {
+                filterSelect.value = employeesList[0].name;
+            }
+
+            const listContainer = document.getElementById('employeesListContainer');
+            listContainer.innerHTML = '';
+
+            employeesList.forEach(emp => {
+                const html = `
+                    <div class="hr-item">
+                        <div>
+                            <div style="font-weight:500; font-size:12px;">${emp.name}</div>
+                            <div class="hr-position">${emp.position}</div>
+                        </div>
+                        <div class="hr-actions">
+                            <button class="hr-btn" onclick="editEmployee('${emp.id}')">✏️</button>
+                            <button class="hr-btn" onclick="deleteEmployee('${emp.id}')" style="color:var(--apple-red);">❌</button>
+                        </div>
+                    </div>
+                `;
+                listContainer.insertAdjacentHTML('beforeend', html);
+            });
+        }
+
+        // Сохранение / Добавление сотрудников
+        function saveEmployeeClick() {
+            const nameInput = document.getElementById('hrInputName');
+            const posInput = document.getElementById('hrInputPosition');
+            const name = nameInput.value.trim();
+            const position = posInput.value.trim() || "Сотрудник";
+
+            if (!name) { alert(i18n[currentLang].alert_fio); return; }
+
+            if (editingEmployeeId) {
+                // Изменение существующего
+                employeesList = employeesList.map(emp => {
+                    if (emp.id === editingEmployeeId) {
+                        return { ...emp, name: name, position: position };
+                    }
+                    return emp;
+                });
+                editingEmployeeId = null;
+                document.getElementById('btnHRAdd').innerText = i18n[currentLang].btnHRAdd;
+            } else {
+                // Добавление нового с генерацией ID
+                const newId = 'emp_' + Date.now();
+                employeesList.push({ id: newId, name: name, position: position });
+            }
+
+            localStorage.setItem('dordoy_employees', JSON.stringify(employeesList));
+            nameInput.value = ''; posInput.value = '';
+            updateEmployeesUI();
+            calculateStatistics();
+        }
+
+        window.editEmployee = function(id) {
+            const target = employeesList.find(e => e.id === id);
+            if (!target) return;
+            document.getElementById('hrInputName').value = target.name;
+            document.getElementById('hrInputPosition').value = target.position;
+            editingEmployeeId = id;
+            document.getElementById('btnHRAdd').innerText = i18n[currentLang].btnHRApply;
+        }
+
+        window.deleteEmployee = function(id) {
+            if (confirm(i18n[currentLang].confirm_del_emp)) {
+                employeesList = employeesList.filter(e => e.id !== id);
+                localStorage.setItem('dordoy_employees', JSON.stringify(employeesList));
+                updateEmployeesUI();
+                calculateStatistics();
+            }
+        }
+
+        function startDrawingMode() {
+            resetMapState();
+            mapState = "drawing";
+            const drawBtn = document.getElementById('drawBtn');
+            drawBtn.innerText = i18n[currentLang].drawBtn_active;
+            drawBtn.className = "action-btn save-btn-style";
+
+            currentPolygonGeometry = new ymaps.Polygon([], {}, { fillColor: "#0071e3", strokeColor: "#0071e3", opacity: 0.35, strokeWidth: 2 });
+            myMap.geoObjects.add(currentPolygonGeometry);
+            currentPolygonGeometry.editor.startDrawing();
+            
+            drawBtn.onclick = function() {
+                const coords = currentPolygonGeometry.geometry.getCoordinates();
+                if (!coords[0] || coords[0].length < 3) { alert(i18n[currentLang].alert_points); return; }
+                openModalForm("poly");
+            };
+        }
+
+        function resetMapState() {
+            mapState = "idle";
+            const drawBtn = document.getElementById('drawBtn');
+            drawBtn.innerText = i18n[currentLang].drawBtn_idle;
+            drawBtn.className = "action-btn draw-btn-style";
+            drawBtn.onclick = startDrawingMode;
+
+            if (currentPolygonGeometry) { 
+                currentPolygonGeometry.editor.stopDrawing(); 
+                myMap.geoObjects.remove(currentPolygonGeometry); 
+                currentPolygonGeometry = null; 
+            }
+            lastClickCoords = null;
+            editingObjectId = null;
+        }
+
+        let currentSavingType = "point";
+        function openModalForm(type) {
+            currentSavingType = type;
+            const inputField = document.getElementById('modalZoneName');
+            
+            if (editingObjectId) {
+                document.getElementById('modalTitle').innerText = i18n[currentLang].modalTitleEdit;
+            } else {
+                document.getElementById('modalTitle').innerText = (type === "poly") ? i18n[currentLang].modalTitlePoly : i18n[currentLang].modalTitlePoint;
+                inputField.value = '';
+            }
+            
+            document.getElementById('zoneModal').style.display = 'flex';
+            setTimeout(() => { inputField.focus(); }, 120);
+        }
+
+        function closeModal() {
+            document.getElementById('zoneModal').style.display = 'none';
+            if (editingObjectId) { renderAll(); }
+            resetMapState();
+        }
+
+        window.startEditObject = function(id) {
+            const target = objectsList.find(o => o.id === id);
+            if (!target) return;
+
+            myMap.balloon.close();
+
+            editingObjectId = id;
+            currentSavingType = target.type;
+
+            document.getElementById('modalZoneName').value = target.name;
+            document.getElementById('modalZoneWorker').value = target.worker;
+            document.getElementById('modalZoneStatus').value = target.status;
+
+            if (target.type === "poly") {
+                myMap.geoObjects.each(function(geoObj) {
+                    if (geoObj.options && geoObj.options.get('objID') === id) {
+                        geoObj.editor.startEditing();
+                        const drawBtn = document.getElementById('drawBtn');
+                        drawBtn.innerText = "💾 Завершить изменение границ";
+                        drawBtn.className = "action-btn save-btn-style";
+                        drawBtn.onclick = function() {
+                            target.coords = geoObj.geometry.getCoordinates();
+                            geoObj.editor.stopEditing();
+                            openModalForm("poly");
+                        };
+                    }
+                });
+            } else {
+                lastClickCoords = target.coords;
+                openModalForm("point");
+            }
+        }
+
+        // Подтверждение сохранения контура/точки
+        function confirmSaveObject() {
+            const name = document.getElementById('modalZoneName').value.trim();
+            const worker = document.getElementById('modalZoneWorker').value || "Не назначен";
+            const statusKey = document.getElementById('modalZoneStatus').value;
+
+            if (!name) { alert(i18n[currentLang].alert_fill); return; }
+
+            if (editingObjectId) {
+                // Изменение существующего
+                objectsList = objectsList.map(obj => {
+                    if (obj.id === editingObjectId) {
+                        return { ...obj, name: name, worker: worker, status: statusKey };
+                    }
+                    return obj;
+                });
+            } else {
+                // Создание нового
+                const currentTimestamp = Date.now();
+                const newId = 'obj_' + currentTimestamp;
+
+                if (currentSavingType === "poly") {
+                    const coords = currentPolygonGeometry.geometry.getCoordinates();
+                    objectsList.push({
+                        id: newId, type: "poly", name: name, worker: worker, status: statusKey, coords: coords, timestamp: currentTimestamp
+                    });
+                } else {
+                    objectsList.push({
+                        id: newId, type: "point", name: name, worker: worker, status: statusKey, coords: lastClickCoords, timestamp: currentTimestamp
+                    });
+                }
+            }
+
+            localStorage.setItem('dordoy_objects', JSON.stringify(objectsList));
+            document.getElementById('zoneModal').style.display = 'none';
+            resetMapState();
+            renderAll();
+        }
+
+        function calculateStatistics() {
+            const filterSelect = document.getElementById('statsWorkerFilter');
+            if (!filterSelect || !filterSelect.value) return;
+            
+            const currentWorker = filterSelect.value;
+            const now = Date.now();
+            const msInDay = 24 * 60 * 60 * 1000;
+            
+            const periods = {
+                1:   { poly: 0, point: 0, totPoly: 0, totPoint: 0, limit: now - msInDay },
+                7:   { poly: 0, point: 0, totPoly: 0, totPoint: 0, limit: now - (7 * msInDay) },
+                15:  { poly: 0, point: 0, totPoly: 0, totPoint: 0, limit: now - (15 * msInDay) },
+                30:  { poly: 0, point: 0, totPoly: 0, totPoint: 0, limit: now - (30 * msInDay) },
+                180: { poly: 0, point: 0, totPoly: 0, totPoint: 0, limit: now - (180 * msInDay) }
+            };
+
+            objectsList.forEach(item => {
+                if (item.status === "green") {
+                    const time = item.timestamp || now;
+                    for (let days in periods) {
+                        if (time >= periods[days].limit) {
+                            if (item.type === "poly") periods[days].totPoly++;
+                            else periods[days].totPoint++;
+
+                            if (item.worker === currentWorker) {
+                                if (item.type === "poly") periods[days].poly++;
+                                else periods[days].point++;
+                            }
+                        }
+                    }
+                }
+            });
+
+            for (let days in periods) {
+                document.getElementById(`s${days}_poly`).innerText = periods[days].poly;
+                document.getElementById(`s${days}_point`).innerText = periods[days].point;
+                document.getElementById(`tot${days}_poly`).innerText = periods[days].totPoly;
+                document.getElementById(`tot${days}_point`).innerText = periods[days].totPoint;
+            }
+        }
+
+        function renderAll() {
+            if (!myMap) return;
+            myMap.geoObjects.each(function(geoObj) {
+                if (geoObj !== currentPolygonGeometry) { myMap.geoObjects.remove(geoObj); }
+            });
+
+            renderMapElements();
+            renderSidebarLists();
+            calculateStatistics();
+        }
+
+        function renderMapElements() {
+            const t = i18n[currentLang];
+            objectsList.forEach(item => {
+                const currentHexColor = colorPalette[item.status] || "#ff453a";
+                let currentLabel = t.status_red;
+                if (item.status === "green") currentLabel = t.status_green;
+                if (item.status === "yellow") currentLabel = t.status_yellow;
+
+                const balloonContent = `
+                    <div style="padding: 6px; min-width: 180px; font-family:sans-serif; color: #1d1d1f; background: #ffffff;">
+                        <b style="font-size:13px; display:block; margin-bottom:4px;">${item.name}</b>
+                        <span style="display:block; font-size:11px; margin-bottom:4px;">${t.balloon_status}: ${currentLabel}</span>
+                        <span style="display:inline-block; background:rgba(0,0,0,0.05); font-size:11px; padding:2px 6px; border-radius:4px; margin-bottom:8px;">${t.balloon_worker}: ${item.worker}</span>
+                        <div style="display:flex; gap:6px;">
+                            <button style="flex:1; background:var(--apple-blue); border:none; color:#fff; padding:6px; border-radius:4px; cursor:pointer; font-size:11px;" onclick="startEditObject('${item.id}')">${t.balloon_edit}</button>
+                            <button style="flex:1; background:var(--apple-red); border:none; color:#fff; padding:6px; border-radius:4px; cursor:pointer; font-size:11px;" onclick="deleteItem('${item.id}')">${t.balloon_del}</button>
+                        </div>
+                    </div>
+                `;
+
+                if (item.type === "poly") {
+                    const polygonElement = new ymaps.Polygon(item.coords, { balloonContent: balloonContent, hintContent: item.name }, { fillColor: currentHexColor, strokeColor: currentHexColor, opacity: 0.35, strokeWidth: 2 });
+                    polygonElement.options.set('objID', item.id);
+                    myMap.geoObjects.add(polygonElement);
+                } else {
+                    let colorKey = item.status === "green" ? "green" : (item.status === "yellow" ? "yellow" : "red");
+                    const placemarkElement = new ymaps.Placemark(item.coords, { balloonContent: balloonContent, hintContent: item.name, iconCaption: item.name }, { preset: `islands#${colorKey}DotIconWithCaption` });
+                    myMap.geoObjects.add(placemarkElement);
+                }
+            });
+        }
+
+        function renderSidebarLists() {
+            const t = i18n[currentLang];
+            const polyContainer = document.getElementById('polyListContainer');
+            const pointContainer = document.getElementById('pointListContainer');
+            polyContainer.innerHTML = ''; pointContainer.innerHTML = '';
+
+            let polyCount = 0, pointCount = 0;
+
+            objectsList.forEach(item => {
+                const currentHexColor = colorPalette[item.status] || "#ff453a";
+                let currentLabel = t.status_red;
+                if (item.status === "green") currentLabel = t.status_green;
+                if (item.status === "yellow") currentLabel = t.status_yellow;
+
+                const icon = item.type === "point" ? "📍" : "🗺️";
+                const itemDate = new Date(item.timestamp || Date.now()).toLocaleDateString('ru-RU');
+
+                const html = `
+                    <div class="row-item" style="border-left: 4px solid ${currentHexColor};">
+                        <div class="item-actions-group">
+                            <button class="sidebar-action-btn" onclick="startEditObject('${item.id}')">✏️</button>
+                            <button class="sidebar-action-btn" onclick="deleteItem('${item.id}')" style="color:var(--apple-red);">🗑️</button>
+                        </div>
+                        <div class="row-name">${icon} ${item.name}</div>
+                        <div style="font-size:11px; color:${currentHexColor}; margin-top:2px;">${currentLabel}</div>
+                        <div style="display:flex; align-items:center; margin-top: 4px;">
+                            <div class="user-badge">👤 ${item.worker}</div>
+                            <div class="date-badge">📅 ${itemDate}</div>
+                        </div>
+                    </div>
+                `;
+
+                if (item.type === "poly") { polyContainer.insertAdjacentHTML('beforeend', html); polyCount++; } 
+                else { pointContainer.insertAdjacentHTML('beforeend', html); pointCount++; }
+            });
+
+            document.getElementById('polyCounter').innerText = polyCount;
+            document.getElementById('pointCounter').innerText = pointCount;
+        }
+
+        window.deleteItem = function(id) {
+            if (confirm(i18n[currentLang].confirm_del_obj)) {
+                objectsList = objectsList.filter(o => o.id !== id);
+                localStorage.setItem('dordoy_objects', JSON.stringify(objectsList));
+                renderAll();
+            }
+        }
+    </script>
+</body>
+</html>
